@@ -1,6 +1,32 @@
 # tf-molecule-apigatewayv2-custom-domain-aws
 
-Terraform molecule (PlatformStackPulse). See the module documentation below.
+Terraform molecule that fronts an API Gateway V2 API (WebSocket or HTTP) with a custom domain — provisioning the custom domain name, the stage API mapping, and the Route53 alias record in one composable unit.
+
+## Features
+
+- **API Gateway V2 custom domain** (`aws_apigatewayv2_domain_name`) with a configurable ACM certificate, endpoint type (default `REGIONAL`), and TLS security policy (default `TLS_1_2`).
+- **Stage API mapping** (`aws_apigatewayv2_api_mapping`) that binds the custom domain to a specific API and stage.
+- **Route53 alias record** (`aws_route53_record`, type `A`) pointing the domain at the API Gateway target domain with health evaluation enabled.
+- **tf-label integration** — standard `namespace`/`environment`/`stage`/`name` context, consistent tagging, and an `enabled` switch to create nothing when set to `false`.
+
+## Usage
+
+```hcl
+module "ws_custom_domain" {
+  source = "git::https://github.com/PlatformStackPulse/tf-molecule-apigatewayv2-custom-domain-aws.git?ref=v1.0.0"
+
+  namespace   = "eg"
+  environment = "use1"
+  stage       = "prod"
+  name        = "ws"
+
+  domain_name     = "ws.example.com"
+  certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/abcd-1234"
+  api_id          = aws_apigatewayv2_api.ws.id
+  stage_name      = aws_apigatewayv2_stage.ws.name
+  zone_id         = data.aws_route53_zone.this.zone_id
+}
+```
 
 <!-- BEGIN_TF_DOCS -->
 ### Requirements
@@ -67,3 +93,17 @@ Terraform molecule (PlatformStackPulse). See the module documentation below.
 | <a name="output_hosted_zone_id"></a> [hosted\_zone\_id](#output\_hosted\_zone\_id) | Hosted zone ID of the domain |
 | <a name="output_target_domain_name"></a> [target\_domain\_name](#output\_target\_domain\_name) | Target domain name for DNS |
 <!-- END_TF_DOCS -->
+
+## Tests
+
+Unit tests use a mock AWS provider (no real AWS calls) and assert on plan-known
+values — resource counts, input pass-throughs, and the disabled fallback.
+
+```bash
+# Unit tests (mock provider, no credentials required)
+terraform init -backend=false
+terraform test -test-directory=tests/unit
+
+# Integration tests (requires AWS credentials)
+terraform test -test-directory=tests/integration
+```
